@@ -37,12 +37,7 @@ phases:
 
       - echo "Running ECS task..."
 
-      - TASK_ARN=$(aws ecs run-task \
-        --cluster $ECS_CLUSTER \
-        --launch-type FARGATE \
-        --task-definition $TASK_REVISION \
-        --query 'tasks[0].taskArn' \
-        --output text)
+      - TASK_ARN=$(aws ecs run-task --cluster $ECS_CLUSTER --launch-type FARGATE --task-definition $TASK_REVISION --query 'tasks[0].taskArn' --output text)
 
       - echo "Waiting for task to stop..."
 
