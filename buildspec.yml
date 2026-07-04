@@ -24,9 +24,11 @@ phases:
 
       - NEW_TASK_DEF=$(echo $TASK_DEF | jq --arg IMAGE "$ECR_URI/$ECR_REPOSITORY:$CODEBUILD_RESOLVED_SOURCE_VERSION" '.taskDefinition | .containerDefinitions[0].image=$IMAGE | del(.taskDefinitionArn,.revision,.status,.requiresAttributes,.compatibilities,.registeredAt,.registeredBy)')
 
-      - echo "$NEW_TASK_DEF" > new-task-def.json
+      - |
+        echo "$TASK_DEF" > task.json
 
-      - TASK_REVISION=$(aws ecs register-task-definition --cli-input-json file://new-task-def.json --query 'taskDefinition.taskDefinitionArn' --output text)
+      - |
+        NEW_TASK_DEF=$(jq --arg IMAGE "$ECR_URI/$ECR_REPOSITORY:$CODEBUILD_RESOLVED_SOURCE_VERSION" '.taskDefinition | .containerDefinitions[0].image=$IMAGE | del(.taskDefinitionArn,.revision,.status,.requiresAttributes,.compatibilities,.registeredAt,.registeredBy)' task.json)
 
       - echo Running ECS task...
 
