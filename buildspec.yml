@@ -26,8 +26,6 @@ phases:
 
       - TASK_ARN=$(aws ecs run-task --cluster $ECS_CLUSTER --launch-type FARGATE --task-definition $ECS_TASK_DEFINITION --network-configuration "awsvpcConfiguration={subnets=[$ECS_SUBNET],securityGroups=[$ECS_SECURITY_GROUP],assignPublicIp=ENABLED}" --query "tasks[0].taskArn" --output text)
 
-      - echo "Task ARN: $TASK_ARN"
-
       - if [ "$TASK_ARN" = "None" ] || [ -z "$TASK_ARN" ]; then echo "Failed to start ECS Task"; exit 1; fi
 
       - echo "Waiting for ECS task to finish..."
