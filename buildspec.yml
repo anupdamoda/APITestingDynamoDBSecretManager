@@ -4,38 +4,38 @@ phases:
 
   pre_build:
     commands:
-      - echo Logging in to Amazon ECR...
+      - echo "Logging in to Amazon ECR..."
       - ACCOUNT_ID=$(aws sts get-caller-identity --query Account --output text)
       - ECR_URI=$ACCOUNT_ID.dkr.ecr.$AWS_REGION.amazonaws.com
       - aws ecr get-login-password --region $AWS_REGION | docker login --username AWS --password-stdin $ECR_URI
 
   build:
     commands:
-      - echo Building Docker image...
-      - docker build -t $ECR_REPOSITORY:$CODEBUILD_RESOLVED_SOURCE_VERSION .
-      - docker tag $ECR_REPOSITORY:$CODEBUILD_RESOLVED_SOURCE_VERSION $ECR_URI/$ECR_REPOSITORY:$CODEBUILD_RESOLVED_SOURCE_VERSION
-      - docker push $ECR_URI/$ECR_REPOSITORY:$CODEBUILD_RESOLVED_SOURCE_VERSION
+      - echo "Building Docker image..."
+
+      - docker build -t $ECR_REPOSITORY:latest .
+
+      - docker tag $ECR_REPOSITORY:latest $ECR_URI/$ECR_REPOSITORY:latest
+
+      - docker push $ECR_URI/$ECR_REPOSITORY:latest
 
   post_build:
     commands:
-      - echo Updating ECS Task Definition...
 
-      - TASK_DEF=$(aws ecs describe-task-definition --task-definition $ECS_TASK_DEFINITION)
+      - echo "Starting ECS Task..."
 
-      - NEW_TASK_DEF=$(echo $TASK_DEF | jq --arg IMAGE "$ECR_URI/$ECR_REPOSITORY:$CODEBUILD_RESOLVED_SOURCE_VERSION" '.taskDefinition | .containerDefinitions[0].image=$IMAGE | del(.taskDefinitionArn,.revision,.status,.requiresAttributes,.compatibilities,.registeredAt,.registeredBy)')
+      - TASK_ARN=$(aws ecs run-task --cluster $ECS_CLUSTER --launch-type FARGATE --task-definition $ECS_TASK_DEFINITION --network-configuration "awsvpcConfiguration={subnets=[$ECS_SUBNET],securityGroups=[$ECS_SECURITY_GROUP],assignPublicIp=ENABLED}" --query "tasks[0].taskArn" --output text)
 
-      - echo "$TASK_DEF" > task.json
+      - echo "Task ARN: $TASK_ARN"
 
-      - NEW_TASK_DEF=$(jq --arg IMAGE "$ECR_URI/$ECR_REPOSITORY:$CODEBUILD_RESOLVED_SOURCE_VERSION" '.taskDefinition | .containerDefinitions[0].image=$IMAGE | del(.taskDefinitionArn,.revision,.status,.requiresAttributes,.compatibilities,.registeredAt,.registeredBy)' task.json)
+      - if [ "$TASK_ARN" = "None" ] || [ -z "$TASK_ARN" ]; then echo "Failed to start ECS Task"; exit 1; fi
 
-      - echo Running ECS task...
-
-      - TASK_ARN=$(aws ecs run-task --cluster $ECS_CLUSTER --launch-type FARGATE --task-definition $TASK_REVISION --network-configuration "awsvpcConfiguration={subnets=[$ECS_SUBNET],securityGroups=[$ECS_SECURITY_GROUP],assignPublicIp=ENABLED}" --query 'tasks[0].taskArn' --output text)
-
-      - echo Waiting for task to stop...
+      - echo "Waiting for ECS task to finish..."
 
       - aws ecs wait tasks-stopped --cluster $ECS_CLUSTER --tasks $TASK_ARN
 
-      - EXIT_CODE=$(aws ecs describe-tasks --cluster $ECS_CLUSTER --tasks $TASK_ARN --query 'tasks[0].containers[0].exitCode' --output text)
+      - EXIT_CODE=$(aws ecs describe-tasks --cluster $ECS_CLUSTER --tasks $TASK_ARN --query "tasks[0].containers[0].exitCode" --output text)
 
-      - if [ "$EXIT_CODE" != "0" ]; then echo "ECS Tests Failed"; exit 1; fi
+      - echo "Container Exit Code: $EXIT_CODE"
+
+      - if [ "$EXIT_CODE" != "0" ]; then exit 1; fi
