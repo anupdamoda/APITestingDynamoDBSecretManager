@@ -7,6 +7,9 @@ env:
     ECS_CLUSTER: expensemanager-test-cluster
     ECS_TASK_DEFINITION: expensemanager-test-task
     S3_BUCKET: ace-automation-bucket-2026-ap-southeast-2
+    variables:
+     ECS_SUBNET: subnet-xxxxxxxx
+     ECS_SECURITY_GROUP: sg-xxxxxxxx
 
 phases:
 
@@ -38,7 +41,7 @@ phases:
 
       - echo Running ECS task...
 
-      - aws ecs run-task --cluster $ECS_CLUSTER --launch-type FARGATE --task-definition $TASK_REVISION
+      - aws ecs run-task --cluster $ECS_CLUSTER --launch-type FARGATE --task-definition $TASK_REVISION --network-configuration "awsvpcConfiguration={subnets=[$ECS_SUBNET],securityGroups=[$ECS_SECURITY_GROUP],assignPublicIp=ENABLED}"
 
       - echo Waiting for task to stop...
 
