@@ -24,11 +24,9 @@ phases:
 
       - NEW_TASK_DEF=$(echo $TASK_DEF | jq --arg IMAGE "$ECR_URI/$ECR_REPOSITORY:$CODEBUILD_RESOLVED_SOURCE_VERSION" '.taskDefinition | .containerDefinitions[0].image=$IMAGE | del(.taskDefinitionArn,.revision,.status,.requiresAttributes,.compatibilities,.registeredAt,.registeredBy)')
 
-      - |
-        echo "$TASK_DEF" > task.json
+      - echo "$TASK_DEF" > task.json
 
-      - |
-        NEW_TASK_DEF=$(jq --arg IMAGE "$ECR_URI/$ECR_REPOSITORY:$CODEBUILD_RESOLVED_SOURCE_VERSION" '.taskDefinition | .containerDefinitions[0].image=$IMAGE | del(.taskDefinitionArn,.revision,.status,.requiresAttributes,.compatibilities,.registeredAt,.registeredBy)' task.json)
+      - NEW_TASK_DEF=$(jq --arg IMAGE "$ECR_URI/$ECR_REPOSITORY:$CODEBUILD_RESOLVED_SOURCE_VERSION" '.taskDefinition | .containerDefinitions[0].image=$IMAGE | del(.taskDefinitionArn,.revision,.status,.requiresAttributes,.compatibilities,.registeredAt,.registeredBy)' task.json)
 
       - echo Running ECS task...
 
