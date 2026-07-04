@@ -30,7 +30,9 @@ phases:
 
       - echo Running ECS task...
 
-      - aws ecs run-task --cluster $ECS_CLUSTER --launch-type FARGATE --task-definition $TASK_REVISION --network-configuration "awsvpcConfiguration={subnets=[$ECS_SUBNET],securityGroups=[$ECS_SECURITY_GROUP],assignPublicIp=ENABLED}"
+      - TASK_ARN=$(aws ecs run-task --cluster $ECS_CLUSTER --launch-type FARGATE --task-definition $TASK_REVISION --network-configuration "awsvpcConfiguration={subnets=[$ECS_SUBNET],securityGroups=[$ECS_SECURITY_GROUP],assignPublicIp=ENABLED}" --query 'tasks[0].taskArn' --output text)
+
+      - echo "Task ARN: $TASK_ARN"
 
       - echo Waiting for task to stop...
 
