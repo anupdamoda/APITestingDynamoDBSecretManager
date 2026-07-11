@@ -18,7 +18,7 @@ echo "Uploading Allure Report to S3..."
 
 echo "RUN_ID: $RUN_ID"
 
-aws s3 cp target/cucumber-report.html s3://ace-automation-bucket-2026-ap-southeast-2/reports/RUN_ID/ --recursive
+aws s3 cp target/cucumber-report.html s3://ace-automation-bucket-2026-ap-southeast-2/reports/${RUN_ID}/cucumber-report.html
 
 echo "Allure Report uploaded successfully to S3"
 
