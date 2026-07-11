@@ -1,6 +1,6 @@
 # API Testing with DynamoDB & Secrets Manager
 
-An automated BDD API testing framework for an online expense manager backend. This project demonstrates modern testing practices using Cucumber, REST Assured, and AWS services integration—designed to run locally or in a CI/CD pipeline via Docker and AWS CodeBuild.
+An automated BDD API testing framework for an online expense manager backend. This project demonstrates modern testing practices using Cucumber, REST Assured, and AWS services integration—including S3 report generation and CI/CD pipeline automation.
 
 ## 🎯 Overview
 
@@ -8,9 +8,10 @@ This repository contains comprehensive API tests for an expense management appli
 
 - **Behavior-Driven Development (BDD)** using Cucumber with Gherkin syntax
 - **REST API testing** with REST Assured and Hamcrest matchers
-- **AWS integration** – credentials from Secrets Manager, test data from DynamoDB
+- **AWS integration** – credentials from Secrets Manager, test data from DynamoDB, reports to S3
 - **Containerized execution** via Docker for consistent test runs
-- **CI/CD pipeline** integration with AWS CodeBuild and ECS
+- **CI/CD pipeline** integration with AWS CodeBuild, ECR, and ECS
+- **S3 Report Generation** – automated test report uploads to AWS S3
 
 ## 📋 Features
 
@@ -21,6 +22,8 @@ This repository contains comprehensive API tests for an expense management appli
 - ✅ Configurable via `config.properties`, system properties, or environment variables
 - ✅ Docker containerization for reproducible test environments
 - ✅ Automated pipeline with AWS CodeBuild → ECR → ECS
+- ✅ **NEW:** Automated test report uploads to AWS S3
+- ✅ **NEW:** AWS CLI integration for S3 operations
 
 ## 🛠️ Prerequisites
 
@@ -32,13 +35,15 @@ This repository contains comprehensive API tests for an expense management appli
 - **AWS account** with access to:
   - Secrets Manager (for test credentials)
   - DynamoDB (for test data)
+  - S3 (for test reports)
 
 ### Docker / Pipeline
 
 - **Docker** (for local container testing)
-- **AWS CLI** (for pipeline execution)
+- **AWS CLI** (for pipeline execution and S3 operations)
 - **ECR repository** for image storage
 - **ECS cluster** for task execution
+- **S3 bucket** for test reports
 
 ## 🚀 Quick Start
 
@@ -83,6 +88,8 @@ Edit `src/test/resources/config.properties`:
 base.url=https://your-api-endpoint.execute-api.us-east-1.amazonaws.com
 aws.region=ap-southeast-2
 aws.roleArn=arn:aws:iam::YOUR_ACCOUNT_ID:role/YourTestingRole
+s3.bucket=your-test-reports-bucket
+s3.region=ap-southeast-2
 ```
 
 ### 5. Run Tests Locally
@@ -108,6 +115,7 @@ docker run --rm \
   -e AWS_REGION=ap-southeast-2 \
   -e AWS_ACCESS_KEY_ID=your_key \
   -e AWS_SECRET_ACCESS_KEY=your_secret \
+  -e S3_BUCKET=your-test-reports-bucket \
   api-testing:latest
 ```
 
@@ -116,8 +124,11 @@ Or use AWS credentials from your host:
 ```bash
 docker run --rm \
   -v ~/.aws/credentials:/root/.aws/credentials \
+  -e S3_BUCKET=your-test-reports-bucket \
   api-testing:latest
 ```
+
+**Note:** The Docker image now includes AWS CLI for S3 report operations.
 
 ## 📁 Project Structure
 
@@ -135,7 +146,8 @@ src/test/java/org/example/
 │   └── ScenarioContext.java # Context between steps
 └── utility/                   # AWS integrations
     ├── SecretManagerUtil.java # Secrets Manager client
-    └── DynamoDBUtil.java     # DynamoDB query utilities
+    ├── DynamoDBUtil.java     # DynamoDB query utilities
+    └── S3ReportUtil.java     # S3 report upload client
 
 src/test/resources/
 ├── features/                  # Gherkin feature files
@@ -144,7 +156,7 @@ src/test/resources/
 ├── config.properties         # Base configuration
 └── cucumber.properties       # Cucumber settings
 
-Dockerfile                     # Container definition
+Dockerfile                     # Container definition (updated with AWS CLI)
 buildspec.yml                 # AWS CodeBuild pipeline
 entrypoint.sh                 # Docker entry point
 pom.xml                       # Maven dependencies
@@ -173,24 +185,47 @@ mvn clean test -Dcucumber.filter.tags="@LoginTest"
 mvn clean test -Dcucumber.filter.tags="@DatabaseTest"
 ```
 
+## 📊 S3 Report Generation
+
+Test reports are automatically generated and uploaded to S3 upon test completion.
+
+**Report Location:** `s3://your-bucket/test-reports/[timestamp]/cucumber-report.html`
+
+**S3 Configuration:**
+```properties
+s3.bucket=your-test-reports-bucket
+s3.region=ap-southeast-2
+```
+
+Reports are organized by timestamp for easy tracking and retrieval. Access reports directly from the AWS S3 console or via AWS CLI:
+
+```bash
+# List all reports
+aws s3 ls s3://your-test-reports-bucket/test-reports/ --recursive
+
+# Download a specific report
+aws s3 cp s3://your-test-reports-bucket/test-reports/[timestamp]/cucumber-report.html . --region ap-southeast-2
+```
+
 ## 🔐 Configuration Hierarchy
 
 Configuration is resolved in this order (first match wins):
 
-1. **Environment variables** (e.g., `TEST_USER_EMAIL`)
+1. **Environment variables** (e.g., `TEST_USER_EMAIL`, `S3_BUCKET`)
 2. **System properties** (e.g., `-Dtest.user.password=value`)
 3. **config.properties** file
 4. **AWS Secrets Manager** (for credentials)
 
-**Example: Override base URL**
+**Example: Override base URL and S3 bucket**
 
 ```bash
 # Via environment variable
 export BASE_URL=https://custom-api.example.com
+export S3_BUCKET=custom-bucket
 mvn test
 
 # Via system property
-mvn test -Dbase.url=https://custom-api.example.com
+mvn test -Dbase.url=https://custom-api.example.com -Ds3.bucket=custom-bucket
 ```
 
 ## 🔑 Key Dependencies
@@ -200,7 +235,7 @@ mvn test -Dbase.url=https://custom-api.example.com
 | Cucumber | 7.15.0 | BDD test framework |
 | REST Assured | 5.4.0 | HTTP client for API testing |
 | JUnit 5 | 5.10.2 | Test execution engine |
-| AWS SDK v2 | 2.25.40 | AWS service integrations |
+| AWS SDK v2 | 2.25.40 | AWS service integrations (Secrets Manager, DynamoDB, S3) |
 | Jackson | 2.16.1 | JSON parsing |
 | Hamcrest | 2.2 | Assertion matchers |
 
@@ -211,10 +246,11 @@ See `pom.xml` for the complete dependency list.
 The `buildspec.yml` automates the entire test pipeline:
 
 1. **Pre-build:** Login to Amazon ECR
-2. **Build:** Construct Docker image
+2. **Build:** Construct Docker image with AWS CLI
 3. **Push:** Upload to ECR repository
 4. **Run:** Trigger ECS task to execute tests
-5. **Poll:** Wait for task completion and check exit code
+5. **Report:** Automatically upload test reports to S3
+6. **Poll:** Wait for task completion and check exit code
 
 **Required CodeBuild environment variables:**
 
@@ -225,6 +261,7 @@ ECS_CLUSTER=your-cluster-name
 ECS_TASK_DEFINITION=your-task-definition
 ECS_SUBNET=subnet-xxxxx
 ECS_SECURITY_GROUP=sg-xxxxx
+S3_BUCKET=your-test-reports-bucket
 ```
 
 ## 🐛 Troubleshooting
@@ -257,6 +294,22 @@ ECS_SECURITY_GROUP=sg-xxxxx
 - Ensure Docker daemon is running
 - Check Docker has sufficient disk space
 - Verify Java/Maven versions in the base image: `maven:3.9.6-eclipse-temurin-17`
+- Verify AWS CLI is properly included in the Docker image
+
+### Issue: S3 report upload fails
+
+**Solution:**
+- Verify S3 bucket exists: `aws s3 ls s3://your-bucket --region ap-southeast-2`
+- Check IAM permissions for S3 PutObject on the bucket
+- Verify S3 bucket name is correct in configuration
+- Ensure AWS credentials have proper S3 access
+
+### Issue: Docker image lacks AWS CLI
+
+**Solution:**
+- Rebuild the Docker image: `docker build -t api-testing:latest .`
+- Verify Dockerfile includes AWS CLI installation
+- Check Docker build logs for errors
 
 ## 📊 Test Execution Output
 
@@ -268,6 +321,9 @@ mvn test
 
 # View target directory
 ls -R target/
+
+# View S3 reports
+aws s3 ls s3://your-bucket/test-reports/ --recursive --region ap-southeast-2
 ```
 
 ## 🤝 Contributing
@@ -287,12 +343,14 @@ ls -R target/
 - ✅ Tag scenarios appropriately (`@LoginTest`, `@DatabaseTest`)
 - ✅ Use descriptive assertion messages
 - ✅ Clean up test data after execution when possible
+- ✅ Store test reports in S3 for archival and compliance
 
 ## 🔗 Resources
 
 - [Cucumber Documentation](https://cucumber.io/docs/cucumber/)
 - [REST Assured Guide](https://rest-assured.io/)
 - [AWS SDK for Java 2.x](https://docs.aws.amazon.com/sdk-for-java/)
+- [AWS S3 Documentation](https://docs.aws.amazon.com/s3/)
 - [Hamcrest Matchers](https://hamcrest.org/)
 
 ## 📄 License
@@ -306,4 +364,5 @@ Created by [anupdamoda](https://github.com/anupdamoda)
 ---
 
 **Last Updated:** July 2026  
-**Status:** Active Development
+**Status:** Active Development  
+**Recent Updates:** S3 report generation, AWS CLI integration, enhanced pipeline automation
